@@ -791,7 +791,8 @@ def page_dashboard():
     sec_header("📋", "Ringkasan Tahunan", "Total penumpang per tahun")
     yearly = df_raw.groupby("Tahun")["Total_Penumpang"].agg(["sum", "mean", "min", "max"])
     yearly.columns = ["Total", "Rata-rata/Bln", "Minimum", "Maksimum"]
-    yearly_fmt = yearly.applymap(lambda x: fmt_num(round(x))).reset_index()
+    yearly_fmt = (yearly.map(lambda x: fmt_num(round(x))) if hasattr(yearly, "map")
+                  else yearly.applymap(lambda x: fmt_num(round(x)))).reset_index()
     st.dataframe(yearly_fmt, use_container_width=True, hide_index=True)
 
     if m:
