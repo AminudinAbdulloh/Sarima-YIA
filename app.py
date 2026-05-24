@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-  FusionSARIMA-UPG  |  Streamlit Dashboard
+  Sistem Informasi Prediksi Penumpang |  Streamlit Dashboard
   Prediksi Jumlah Penumpang Domestik Bandara Sultan Hasanuddin Makassar
 =============================================================================
 """
@@ -38,7 +38,7 @@ from scipy.stats import pearsonr
 # PAGE CONFIG  (must be first Streamlit call)
 # ─────────────────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="FusionSARIMA-UPG | Prediksi Penumpang",
+    page_title="LalinudSARIMA UPG - | Prediksi Penumpang",
     page_icon="✈️",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -752,7 +752,7 @@ def page_dashboard():
 
     st.markdown("""
 <div class="page-hero">
-  <h1>✈️ FusionSARIMA-UPG Dashboard</h1>
+  <h1>✈️ LalinudSARIMA UPG - Dashboard</h1>
   <p>Prediksi Penumpang Domestik · Bandara Sultan Hasanuddin Makassar · Metode SARIMA</p>
 </div>""", unsafe_allow_html=True)
 
@@ -1215,7 +1215,7 @@ def render_sidebar():
         st.markdown("""
 <div class="sb-brand">
   <div class="sb-brand-icon">✈️</div>
-  <h2>FusionSARIMA-UPG</h2>
+  <h2>LalinudSARIMA UPG</h2>
   <p>Bandara Sultan Hasanuddin<br>Makassar · Penumpang Domestik</p>
 </div>""", unsafe_allow_html=True)
 
@@ -1286,11 +1286,6 @@ MAPE: {m['mape']:.2f}% · Akurasi: {m['acc']:.2f}%
 <div class="box-warn" style="font-size:12px;">
 ⚠️ Model belum dijalankan.<br>
 Buka <b>🤖 Model &amp; Prediksi</b> untuk mulai.
-</div>""", unsafe_allow_html=True)
-
-        st.markdown("""
-<div style="text-align:center;color:#334155;font-size:11px;margin-top:24px;">
-  FusionSARIMA-UPG © 2026<br>Skripsi · Universitas Persatuan Guru
 </div>""", unsafe_allow_html=True)
 
         return pages[selected]
