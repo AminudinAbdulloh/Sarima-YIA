@@ -102,7 +102,9 @@ html, body, [data-testid="stAppViewContainer"] {
 [data-testid="block-container"] { padding: 1.5rem 2rem; }
 
 /* ── Hide default elements ── */
-#MainMenu, footer, header { visibility: hidden; }
+#MainMenu, footer { visibility: hidden; }
+[data-testid="stHeader"] [data-testid="stActionButton"] { display: none; }
+header { background: transparent !important; }
 [data-testid="stDecoration"] { display: none; }
 
 /* ── Sidebar ── */
