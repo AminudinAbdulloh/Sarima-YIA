@@ -1,6 +1,4 @@
 ﻿Periode,Bandara,Kategori,Pesawat_Datang,Pesawat_Berangkat,Penumpang_Datang,Penumpang_Berangkat,Penumpang Transit_Datang,Penumpang Transit_Berangkat,Kargo_Datang,Kargo_Berangkat,Bagasi_Datang,Bagasi_Berangkat,Pos_Datang,Pos_Berangkat
-2020-01,UPG,Domestik,1,0,22,0,0,0,116,0,101,0,0,0
-2020-02,UPG,Domestik,1,0,56,0,0,0,1786,0,519,0,0,0
 2020-03,UPG,Domestik,3312,3280,330131,217013,0,0,2021999,1463002,1862730,1387854,5836,6409
 2020-04,UPG,Domestik,1153,1148,69873,47758,0,0,1599647,1205311,392605,282599,2329,2185
 2020-05,UPG,Domestik,170,183,4295,6016,0,0,472018,365562,28885,31111,0,57
