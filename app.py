@@ -312,8 +312,8 @@ def apply_plotly_theme(fig, title="", height=420):
 # DATA LOADING & PREPROCESSING
 # ─────────────────────────────────────────────────────────────────────────────
 @st.cache_data(show_spinner=False)
-def load_and_preprocess(file_bytes: bytes, z_thresh: float = 3.5, iqr_mult: float = 1.5):
-    """Load CSV dari bytes dan preprocess. Data asli digunakan tanpa treatment outlier."""
+def load_and_preprocess(file_bytes: bytes):
+    """Load CSV dari bytes dan preprocess. Data asli digunakan tanpa modifikasi nilai."""
     df_raw = pd.read_csv(io.BytesIO(file_bytes))
     df_raw["Periode"] = pd.to_datetime(df_raw["Periode"], format="%Y-%m")
     df_raw = df_raw.sort_values("Periode").reset_index(drop=True)
@@ -325,17 +325,10 @@ def load_and_preprocess(file_bytes: bytes, z_thresh: float = 3.5, iqr_mult: floa
     df_raw["Tahun"] = df_raw["Periode"].dt.year
     ts_raw = df_raw.set_index("Periode")["Total_Penumpang"].asfreq("MS")
 
-    # Gunakan data asli tanpa treatment outlier — nilai tidak diganti dengan interpolasi
+    # Gunakan data asli tanpa modifikasi nilai
     ts = ts_raw.copy()
-    df_raw["is_outlier"] = False
 
-    outlier_info = dict(
-        dates=[], mod_z=pd.Series(dtype=float),
-        lower_fence=0.0, upper_fence=0.0,
-        Q1=0.0, Q3=0.0, IQR=0.0,
-        ts_med=float(ts_raw.median()), ts_mad=0.0,
-    )
-    return df_raw, ts_raw, ts, outlier_info
+    return df_raw, ts_raw, ts
 
 @st.cache_data(show_spinner=False)
 def run_stationarity(ts_bytes):
@@ -693,7 +686,7 @@ def chart_residual_diagnostics(residuals):
 # ─────────────────────────────────────────────────────────────────────────────
 def page_dashboard():
     m = st.session_state.get("model_result")
-    df_raw, ts_raw, ts, outlier_info = st.session_state["data"]
+    df_raw, ts_raw, ts = st.session_state["data"]
 
     st.markdown("""
 <div class="page-hero">
@@ -750,7 +743,7 @@ def page_dashboard():
 
 
 def page_eda():
-    df_raw, ts_raw, ts, _ = st.session_state["data"]
+    df_raw, ts_raw, ts = st.session_state["data"]
     sec_header("📊", "Eksplorasi Data (EDA)", "Analisis deskriptif data penumpang Bandara UPG")
 
     c1, c2, c3, c4 = st.columns(4)
@@ -785,7 +778,7 @@ def page_eda():
 
 
 def page_outlier():
-    _, ts_raw, ts, _ = st.session_state["data"]
+    _, ts_raw, ts = st.session_state["data"]
 
     sec_header("📋", "Statistik Data Historis", "Data penumpang asli tanpa modifikasi nilai")
 
@@ -829,7 +822,7 @@ def page_outlier():
 
 
 def page_stationarity():
-    _, _, ts, _ = st.session_state["data"]
+    _, _, ts = st.session_state["data"]
     file_bytes   = st.session_state["file_bytes"]
 
     sec_header("📈", "Uji Stasioneritas", "ADF Test + KPSS Test + Dekomposisi Time Series")
@@ -900,7 +893,7 @@ Garis putus-putus = batas kepercayaan 95%.
 
 
 def page_model():
-    _, _, ts, _ = st.session_state["data"]
+    _, _, ts = st.session_state["data"]
 
     sec_header("🤖", "Model SARIMA & Prediksi", "Auto ARIMA + Fitting + Forecast")
 
@@ -1061,7 +1054,7 @@ agar hasil tersedia untuk diunduh.
 </div>""", unsafe_allow_html=True)
         return
 
-    df_raw, ts_raw, ts, outlier_info = res
+    df_raw, ts_raw, ts = res
 
     # Prepare dataframes
     df_forecast = pd.DataFrame(m["forecast_rows"])
@@ -1075,7 +1068,7 @@ agar hasil tersedia untuk diunduh.
         "APE (%)":     np.round(np.abs((m["test"].values - m["pred_mean"].values)
                                        / m["test"].values) * 100, 2),
     })
-    df_outlier = pd.DataFrame()  # Data asli digunakan tanpa treatment outlier
+
 
     df_summary = pd.DataFrame({
         "Parameter": ["Model","Order (p,d,q)","Seasonal Order","AIC","BIC","MAE","RMSE","MAPE (%)","Akurasi (%)","Pearson R","R-squared"],
@@ -1113,28 +1106,25 @@ agar hasil tersedia untuk diunduh.
         st.download_button("⬇️ Download Evaluasi (CSV)", csv_ev,
                            "evaluasi_test.csv", "text/csv", use_container_width=True)
 
-    # Excel download
-    sec_header("📑", "Download Excel Lengkap (5 Sheet)")
+    sec_header("📑", "Download Excel Lengkap (4 Sheet)")
     excel_buf = io.BytesIO()
     df_hist_dl = df_raw[["Periode","Total_Penumpang","Penumpang_Datang","Penumpang_Berangkat",
-                          "Total_Pesawat","is_outlier"]].copy()
+                          "Total_Pesawat"]].copy()
     df_hist_dl["Periode"] = df_hist_dl["Periode"].dt.strftime("%Y-%m")
     with pd.ExcelWriter(excel_buf, engine="openpyxl") as writer:
         df_hist_dl.to_excel(writer, sheet_name="Data_Historis",   index=False)
         df_forecast.to_excel(writer, sheet_name="Prediksi_12_Bln", index=False)
         df_eval.to_excel(writer,     sheet_name="Evaluasi_Test",   index=False)
-        if not df_outlier.empty:
-            df_outlier.to_excel(writer, sheet_name="Outlier_Log",  index=False)
         df_summary.to_excel(writer,  sheet_name="Ringkasan_Model", index=False)
     excel_buf.seek(0)
 
     st.markdown("""
 <div class="box-info">
-📑 File Excel berisi <b>5 sheet</b>: Data Historis, Prediksi 12 Bulan,
-Evaluasi Test, Outlier Log, dan Ringkasan Model.
+📑 File Excel berisi <b>4 sheet</b>: Data Historis, Prediksi ke Depan,
+Evaluasi Test, dan Ringkasan Model.
 </div>""", unsafe_allow_html=True)
     st.download_button(
-        "⬇️ Download Excel Lengkap (5 Sheet)",
+        "⬇️ Download Excel Lengkap (4 Sheet)",
         excel_buf.getvalue(),
         "hasil_fusion_sarima.xlsx",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -1178,15 +1168,14 @@ def render_sidebar():
 
         # Cache data in session state
         if "file_bytes" not in st.session_state or st.session_state["file_bytes"] != file_bytes:
-            st.session_state["file_bytes"]    = file_bytes
-            st.session_state["model_result"]  = None
-            st.session_state["outlier_config"] = (3.5, 1.5)
+            st.session_state["file_bytes"]   = file_bytes
+            st.session_state["model_result"] = None
             with st.spinner("Memuat data..."):
                 st.session_state["data"] = load_and_preprocess(file_bytes)
 
         # Data info
         if "data" in st.session_state:
-            _, _, ts, _ = st.session_state["data"]
+            _, _, ts = st.session_state["data"]
             st.markdown(f"""
 <div class="box-info" style="font-size:12px;margin-top:8px;">
 📅 <b>{ts.index[0].strftime('%b %Y')}</b> — <b>{ts.index[-1].strftime('%b %Y')}</b><br>
@@ -1237,9 +1226,7 @@ def main():
 
     # Initialize session state
     if "model_result" not in st.session_state:
-        st.session_state["model_result"]   = None
-    if "outlier_config" not in st.session_state:
-        st.session_state["outlier_config"] = (3.5, 1.5)
+        st.session_state["model_result"] = None
 
     page = render_sidebar()
 
