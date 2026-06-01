@@ -313,7 +313,7 @@ def apply_plotly_theme(fig, title="", height=420):
 # ─────────────────────────────────────────────────────────────────────────────
 @st.cache_data(show_spinner=False)
 def load_and_preprocess(file_bytes: bytes, z_thresh: float = 3.5, iqr_mult: float = 1.5):
-    """Load CSV dari bytes, preprocess, detect outliers."""
+    """Load CSV dari bytes dan preprocess. Data asli digunakan tanpa treatment outlier."""
     df_raw = pd.read_csv(io.BytesIO(file_bytes))
     df_raw["Periode"] = pd.to_datetime(df_raw["Periode"], format="%Y-%m")
     df_raw = df_raw.sort_values("Periode").reset_index(drop=True)
@@ -325,33 +325,15 @@ def load_and_preprocess(file_bytes: bytes, z_thresh: float = 3.5, iqr_mult: floa
     df_raw["Tahun"] = df_raw["Periode"].dt.year
     ts_raw = df_raw.set_index("Periode")["Total_Penumpang"].asfreq("MS")
 
-    # Modified Z-score
-    ts_med = ts_raw.median()
-    ts_mad = (ts_raw - ts_med).abs().median()
-    mod_z  = 0.6745 * (ts_raw - ts_med) / (ts_mad + 1e-9)
-    mask_z = mod_z.abs() > z_thresh
-
-    # IQR
-    Q1, Q3 = ts_raw.quantile(0.25), ts_raw.quantile(0.75)
-    IQR = Q3 - Q1
-    lower_fence = Q1 - iqr_mult * IQR
-    upper_fence = Q3 + iqr_mult * IQR
-    mask_iqr = (ts_raw < lower_fence) | (ts_raw > upper_fence)
-
-    outlier_mask  = mask_z | mask_iqr
-    outlier_dates = ts_raw[outlier_mask].index.tolist()
-
-    # Treatment: interpolasi linear
+    # Gunakan data asli tanpa treatment outlier — nilai tidak diganti dengan interpolasi
     ts = ts_raw.copy()
-    ts[outlier_mask] = np.nan
-    ts = ts.interpolate(method="time").bfill().ffill()
-
-    df_raw["is_outlier"] = df_raw["Periode"].isin(outlier_dates)
+    df_raw["is_outlier"] = False
 
     outlier_info = dict(
-        dates=outlier_dates, mod_z=mod_z,
-        lower_fence=lower_fence, upper_fence=upper_fence,
-        Q1=Q1, Q3=Q3, IQR=IQR, ts_med=ts_med, ts_mad=ts_mad,
+        dates=[], mod_z=pd.Series(dtype=float),
+        lower_fence=0.0, upper_fence=0.0,
+        Q1=0.0, Q3=0.0, IQR=0.0,
+        ts_med=float(ts_raw.median()), ts_mad=0.0,
     )
     return df_raw, ts_raw, ts, outlier_info
 
@@ -491,21 +473,10 @@ def run_model(ts, test_size: int, n_forecast: int, use_auto: bool,
 def chart_ts_overview(df_raw, ts, ts_raw):
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        x=ts_raw.index, y=ts_raw.values, name="Data Asli",
-        line=dict(color="#334155", width=1.4, dash="dot"), opacity=0.5,
-    ))
-    fig.add_trace(go.Scatter(
-        x=ts.index, y=ts.values, name="Setelah Treatment",
+        x=ts.index, y=ts.values, name="Total Penumpang",
         line=dict(color=C["blue"], width=2.2),
         fill="tozeroy", fillcolor="rgba(59,130,246,0.07)",
     ))
-    fig.add_vrect(
-        x0="2020-03-01", x1="2020-12-31",
-        fillcolor="rgba(239,68,68,0.06)", line_width=0,
-        annotation_text="COVID-19", annotation_position="top left",
-        annotation_font=dict(color="#F87171", size=11),
-    )
-    fig.add_vline(x="2022-01-01", line=dict(color=C["green"], width=1.2, dash="dash"))
     apply_plotly_theme(fig, "📈 Total Penumpang Domestik per Bulan", height=400)
     fig.update_yaxes(tickformat=",.0f")
     return fig
@@ -536,34 +507,6 @@ def chart_pesawat(df_raw):
     apply_plotly_theme(fig, "✈️ Total Pergerakan Pesawat per Bulan", height=300)
     return fig
 
-def chart_outlier(ts_raw, ts, outlier_info):
-    od = outlier_info
-    fig = make_subplots(rows=2, cols=1, subplot_titles=["Data Asli + Batas Outlier", "Sebelum vs Sesudah Treatment"])
-    # Panel 1
-    fig.add_trace(go.Scatter(x=ts_raw.index, y=ts_raw.values, name="Data Asli",
-        line=dict(color=C["blue"], width=2)), row=1, col=1)
-    fig.add_hline(y=od["upper_fence"], line=dict(color=C["red"], dash="dash", width=1.5), row=1, col=1)
-    fig.add_hline(y=od["lower_fence"], line=dict(color=C["red"], dash="dot",  width=1.5), row=1, col=1)
-    if od["dates"]:
-        fig.add_trace(go.Scatter(
-            x=od["dates"], y=ts_raw[od["dates"]].values,
-            name="Outlier", mode="markers",
-            marker=dict(color=C["red"], size=10, symbol="x"),
-        ), row=1, col=1)
-    # Panel 2
-    fig.add_trace(go.Scatter(x=ts_raw.index, y=ts_raw.values, name="Sebelum",
-        line=dict(color="#64748B", dash="dot", width=1.5), opacity=0.6), row=2, col=1)
-    fig.add_trace(go.Scatter(x=ts.index, y=ts.values, name="Sesudah Interpolasi",
-        line=dict(color=C["green"], width=2.2)), row=2, col=1)
-    if od["dates"]:
-        fig.add_trace(go.Scatter(
-            x=od["dates"], y=ts[od["dates"]].values,
-            name="Nilai Interpolasi", mode="markers",
-            marker=dict(color=C["green"], size=10, symbol="triangle-up"),
-        ), row=2, col=1)
-    apply_plotly_theme(fig, "", height=600)
-    fig.update_layout(title=dict(text="🔍 Deteksi & Treatment Outlier (Modified Z-score + IQR)"))
-    return fig
 
 def chart_decomp(decomp_dict):
     obs  = pd.Series(decomp_dict["observed"]);  obs.index  = pd.to_datetime(obs.index)
@@ -760,7 +703,6 @@ def page_dashboard():
 
     # KPI cards
     total_hist = ts.sum()
-    n_outlier  = len(outlier_info["dates"])
     n_obs      = len(ts)
 
     if m:
@@ -775,8 +717,8 @@ def page_dashboard():
         cards_html = f"""
 <div class="kpi-grid">
   {kpi_card("Total Data Historis", fmt(total_hist), f"{n_obs} bulan observasi", "📦", "blue")}
-  {kpi_card("Outlier Terdeteksi", str(n_outlier), "Telah diinterpolasi", "🔍", "red")}
   {kpi_card("Periode Data", ts.index[0].strftime("%b %Y"), f"s/d {ts.index[-1].strftime('%b %Y')}", "📅", "amber")}
+  {kpi_card("Rata-rata/Bulan", fmt(ts.mean()), "Penumpang per bulan", "📊", "purple")}
   {kpi_card("Status Model", "Belum Dijalankan", "Buka halaman Model & Prediksi", "⚠️", "amber")}
 </div>"""
     st.markdown(cards_html, unsafe_allow_html=True)
@@ -843,49 +785,47 @@ def page_eda():
 
 
 def page_outlier():
-    _, ts_raw, ts, outlier_info = st.session_state["data"]
-    file_bytes = st.session_state["file_bytes"]
+    _, ts_raw, ts, _ = st.session_state["data"]
 
-    sec_header("🔍", "Deteksi & Treatment Outlier", "Modified Z-score + IQR")
+    sec_header("📋", "Statistik Data Historis", "Data penumpang asli tanpa modifikasi nilai")
 
-    with st.expander("⚙️ Konfigurasi Threshold Outlier", expanded=False):
-        c1, c2 = st.columns(2)
-        z_thresh   = c1.slider("Modified Z-score Threshold", 2.0, 5.0, 3.5, 0.1)
-        iqr_mult   = c2.slider("IQR Multiplier", 1.0, 3.0, 1.5, 0.1)
-        if st.button("🔄 Terapkan Ulang", type="primary"):
-            st.session_state["outlier_config"] = (z_thresh, iqr_mult)
-            load_and_preprocess.clear()
-
-    z_thresh, iqr_mult = st.session_state.get("outlier_config", (3.5, 1.5))
-    _, ts_raw2, ts2, oi = load_and_preprocess(file_bytes, z_thresh, iqr_mult)
-
-    od = oi
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Outlier Terdeteksi",   f"{len(od['dates'])} bulan")
-    c2.metric("Batas Bawah IQR",      fmt_num(od["lower_fence"]))
-    c3.metric("Batas Atas IQR",       fmt_num(od["upper_fence"]))
-
-    st.plotly_chart(chart_outlier(ts_raw2, ts2, od), use_container_width=True)
-
-    if od["dates"]:
-        sec_header("📋", "Detail Outlier Terdeteksi")
-        rows = []
-        for d in od["dates"]:
-            rows.append({
-                "Periode":       d.strftime("%Y-%m"),
-                "Bulan":         d.strftime("%B %Y"),
-                "Nilai Asli":    fmt_num(int(ts_raw2[d])),
-                "Nilai Interpolasi": fmt_num(int(ts2[d])),
-                "Mod Z-score":   f"{od['mod_z'][d]:.2f}",
-            })
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-
-    st.markdown(f"""
+    st.markdown("""
 <div class="box-info">
-  💡 <b>Metode:</b> Outlier dideteksi menggunakan gabungan <b>Modified Z-score (Iglewicz &amp; Hoaglin, 1993)</b>
-  dengan threshold {z_thresh} dan <b>IQR ×{iqr_mult}</b>.
-  Nilai outlier diganti dengan <b>interpolasi linear berbasis waktu (time-based)</b>.
+  ℹ️ <b>Data Asli Digunakan:</b> Proyek ini menggunakan data penumpang <b>tanpa</b> penggantian
+  nilai melalui interpolasi. Seluruh nilai historis dipertahankan sesuai data asli
+  termasuk periode penurunan akibat berbagai faktor eksternal.
 </div>""", unsafe_allow_html=True)
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Total Observasi",  f"{len(ts)} bulan")
+    c2.metric("Nilai Minimum",    fmt_num(int(ts.min())))
+    c3.metric("Nilai Maksimum",   fmt_num(int(ts.max())))
+    c4.metric("Rata-rata/Bulan",  fmt_num(int(ts.mean())))
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=ts.index, y=ts.values, name="Total Penumpang (Asli)",
+        line=dict(color=C["blue"], width=2.2),
+        fill="tozeroy", fillcolor="rgba(59,130,246,0.07)",
+    ))
+    apply_plotly_theme(fig, "📈 Data Penumpang Domestik Asli (Tanpa Modifikasi)", height=420)
+    fig.update_yaxes(tickformat=",.0f")
+    st.plotly_chart(fig, use_container_width=True)
+
+    sec_header("📊", "Statistik Deskriptif", "Ringkasan statistik data historis")
+    stats_df = pd.DataFrame({
+        "Statistik": ["Total Keseluruhan", "Rata-rata/Bulan", "Median",
+                      "Std. Deviasi", "Nilai Minimum", "Nilai Maksimum"],
+        "Nilai": [
+            fmt_num(int(ts.sum())),
+            fmt_num(int(ts.mean())),
+            fmt_num(int(ts.median())),
+            fmt_num(int(ts.std())),
+            fmt_num(int(ts.min())),
+            fmt_num(int(ts.max())),
+        ]
+    })
+    st.dataframe(stats_df, use_container_width=True, hide_index=True)
 
 
 def page_stationarity():
@@ -1135,12 +1075,7 @@ agar hasil tersedia untuk diunduh.
         "APE (%)":     np.round(np.abs((m["test"].values - m["pred_mean"].values)
                                        / m["test"].values) * 100, 2),
     })
-    df_outlier = pd.DataFrame({
-        "Periode":       [d.strftime("%Y-%m") for d in outlier_info["dates"]],
-        "Bulan":         [d.strftime("%B %Y")  for d in outlier_info["dates"]],
-        "Nilai_Asli":    [int(ts_raw[d])        for d in outlier_info["dates"]],
-        "Nilai_Imputed": [int(ts[d])            for d in outlier_info["dates"]],
-    }) if outlier_info["dates"] else pd.DataFrame()
+    df_outlier = pd.DataFrame()  # Data asli digunakan tanpa treatment outlier
 
     df_summary = pd.DataFrame({
         "Parameter": ["Model","Order (p,d,q)","Seasonal Order","AIC","BIC","MAE","RMSE","MAPE (%)","Akurasi (%)","Pearson R","R-squared"],
@@ -1251,11 +1186,11 @@ def render_sidebar():
 
         # Data info
         if "data" in st.session_state:
-            _, _, ts, oi = st.session_state["data"]
+            _, _, ts, _ = st.session_state["data"]
             st.markdown(f"""
 <div class="box-info" style="font-size:12px;margin-top:8px;">
 📅 <b>{ts.index[0].strftime('%b %Y')}</b> — <b>{ts.index[-1].strftime('%b %Y')}</b><br>
-📊 <b>{len(ts)}</b> observasi · <b>{len(oi['dates'])}</b> outlier
+📊 <b>{len(ts)}</b> observasi · Data Asli
 </div>""", unsafe_allow_html=True)
 
         st.markdown("<hr class='sep'>", unsafe_allow_html=True)
@@ -1263,13 +1198,13 @@ def render_sidebar():
         # Navigation
         st.markdown("### 🗺️ Navigasi")
         pages = {
-            "🏠 Dashboard":                 "dashboard",
-            "📊 Eksplorasi Data (EDA)":     "eda",
-            "🔍 Deteksi Outlier":           "outlier",
+            "🏠 Dashboard":                   "dashboard",
+            "📊 Eksplorasi Data (EDA)":       "eda",
+            "📋 Statistik Data Historis":     "outlier",
             "📈 Stasioneritas & Dekomposisi": "stationarity",
-            "🤖 Model & Prediksi":          "model",
-            "🧪 Diagnostik Residual":       "diagnostics",
-            "📥 Download Hasil":            "download",
+            "🤖 Model & Prediksi":            "model",
+            "🧪 Diagnostik Residual":         "diagnostics",
+            "📥 Download Hasil":              "download",
         }
         selected = st.radio("Pilih Halaman", list(pages.keys()), label_visibility="collapsed")
 
