@@ -11,20 +11,41 @@ from config import PLOTLY_LAYOUT
 
 # ── Number formatters ──────────────────────────────────────────────────────────
 
+def _to_id(s: str) -> str:
+    """
+    Konversi string angka format Python (koma=ribuan, titik=desimal)
+    ke format Indonesia (titik=ribuan, koma=desimal).
+    Contoh: '1,234,567.89' → '1.234.567,89'
+    """
+    if "," in s and "." in s:
+        # Ada keduanya: pisah integer & desimal, lalu konversi
+        int_part, dec_part = s.rsplit(".", 1)
+        int_part = int_part.replace(",", ".")
+        return f"{int_part},{dec_part}"
+    elif "," in s:
+        # Hanya pemisah ribuan (koma), tidak ada desimal
+        return s.replace(",", ".")
+    return s
+
+
 def fmt(n: float) -> str:
-    """Short human-readable number: 1.2M, 750.3K, etc."""
+    """Short human-readable number: 1,2M, 750,3K, etc. (format Indonesia)."""
     n = float(n)
-    if abs(n) >= 1_000_000: return f"{n / 1_000_000:.2f}M"
-    if abs(n) >= 1_000:     return f"{n / 1_000:.1f}K"
-    return f"{n:,.0f}"
+    if abs(n) >= 1_000_000: return f"{n / 1_000_000:.2f}M".replace(".", ",")
+    if abs(n) >= 1_000:     return f"{n / 1_000:.1f}K".replace(".", ",")
+    return f"{n:.0f}"
 
 def fmt_num(n) -> str:
-    """Full comma-separated integer string."""
-    return f"{float(n):,.0f}"
+    """Full integer string dengan pemisah ribuan titik (format Indonesia)."""
+    return _to_id(f"{float(n):,.0f}")
+
+def fmt_dec(n, decimals: int = 2) -> str:
+    """Angka dengan desimal koma (format Indonesia). Misal: 1.234,56"""
+    return _to_id(f"{float(n):,.{decimals}f}")
 
 def fmt_pct(n) -> str:
     """Percentage with 2 decimal places."""
-    return f"{float(n):.2f}%"
+    return f"{float(n):.2f}%".replace(".", ",")
 
 
 # ── HTML components ────────────────────────────────────────────────────────────

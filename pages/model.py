@@ -85,8 +85,8 @@ def render() -> None:
     p1, p2, p3, p4 = st.columns(4)
     p1.metric("Order (p,d,q)",      str(m["order"]))
     p2.metric("Seasonal (P,D,Q,s)", str(m["seasonal_order"]))
-    p3.metric("AIC",                f"{m['aic']:.2f}")
-    p4.metric("BIC",                f"{m['bic']:.2f}")
+    p3.metric("AIC",                f"{m['aic']:.2f}".replace(".", ","))
+    p4.metric("BIC",                f"{m['bic']:.2f}".replace(".", ","))
 
     # ── Evaluation metrics ───────────────────────────────────────────────────
     section_header("Evaluasi", "Kinerja Model pada Data Uji (12 Bulan Terakhir)",
@@ -95,7 +95,7 @@ def render() -> None:
         kpi_card("MAE",     fmt_num(round(m["mae"])),  "Mean Absolute Error",        "📏", "blue"),
         kpi_card("RMSE",    fmt_num(round(m["rmse"])), "Root Mean Squared Error",    "📐", "purple"),
         kpi_card("MAPE",    fmt_pct(m["mape"]),         "Mean Absolute % Error",      "📉", "amber"),
-        kpi_card("Akurasi", fmt_pct(m["acc"]),          f"Pearson R = {m['r']:.4f}", "🎯", "green"),
+        kpi_card("Akurasi", fmt_pct(m["acc"]),          f"Pearson R = {m['r']:.4f}".replace(".", ","), "🎯", "green"),
     )
 
     # ── Main forecast chart ──────────────────────────────────────────────────

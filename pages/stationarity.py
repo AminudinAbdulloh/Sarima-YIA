@@ -32,11 +32,11 @@ def render() -> None:
         for label, r in stat_res.items():
             rows.append({
                 "Series":       label,
-                "ADF Stat":     f"{r['adf_stat']:.4f}",
-                "ADF p-value":  f"{r['adf_pval']:.4f}",
+                "ADF Stat":     f"{r['adf_stat']:.4f}".replace(".", ","),
+                "ADF p-value":  f"{r['adf_pval']:.4f}".replace(".", ","),
                 "ADF Hasil":    "✅ Stasioner" if r["adf_ok"] else "❌ Tidak Stasioner",
-                "KPSS Stat":    f"{r['kpss_stat']:.4f}",
-                "KPSS p-value": f"{r['kpss_pval']:.4f}",
+                "KPSS Stat":    f"{r['kpss_stat']:.4f}".replace(".", ","),
+                "KPSS p-value": f"{r['kpss_pval']:.4f}".replace(".", ","),
                 "KPSS Hasil":   "✅ Stasioner" if r["kpss_ok"] else "❌ Tidak Stasioner",
             })
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
@@ -55,11 +55,11 @@ def render() -> None:
                 c1.markdown(f"""**ADF Test**
 - Statistik: `{r['adf_stat']:.4f}`
 - p-value: `{r['adf_pval']:.4f}`
-- **{'✅ STASIONER (p ≤ 0.05)' if r['adf_ok'] else '❌ TIDAK STASIONER (p > 0.05)'}**""")
+- **{'✅ STASIONER (p ≤ 0,05)' if r['adf_ok'] else '❌ TIDAK STASIONER (p > 0,05)'}**""")
                 c2.markdown(f"""**KPSS Test**
 - Statistik: `{r['kpss_stat']:.4f}`
 - p-value: `{r['kpss_pval']:.4f}`
-- **{'✅ STASIONER (p > 0.05)' if r['kpss_ok'] else '❌ TIDAK STASIONER (p ≤ 0.05)'}**""")
+- **{'✅ STASIONER (p > 0,05)' if r['kpss_ok'] else '❌ TIDAK STASIONER (p ≤ 0,05)'}**""")
 
     # ── Tab 2: Decomposition ──────────────────────────────────────────────────
     with tabs[1]:

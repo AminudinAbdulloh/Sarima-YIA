@@ -4,7 +4,7 @@ import streamlit as st
 import pandas as pd
 from components import (
     kpi_card, kpi_grid, section_header, page_hero,
-    fmt, fmt_num, fmt_pct, app_footer,
+    fmt, fmt_num, fmt_dec, fmt_pct, app_footer,
 )
 from chart_utils import chart_ts_overview, chart_seasonal_pattern
 
@@ -78,7 +78,8 @@ def render() -> None:
         .reset_index()
     )
     for col in ["Total", "Rata-rata / Bulan", "Minimum", "Maksimum"]:
-        yearly[col] = yearly[col].apply(lambda x: f"{x:,.0f}")
+        yearly[col] = yearly[col].apply(fmt_num)
+    yearly["Tahun"] = yearly["Tahun"].astype(int).astype(str)
     st.dataframe(yearly, use_container_width=True, hide_index=True)
 
     # ── Forecast preview ─────────────────────────────────────────────────────

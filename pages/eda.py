@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """pages/eda.py — Exploratory Data Analysis page."""
 import streamlit as st
-from components import section_header, page_hero, info_box, fmt_num
+from components import section_header, page_hero, info_box, fmt_num, fmt_dec
 from chart_utils import (
     chart_ts_overview, chart_datang_berangkat, chart_pesawat, chart_seasonal_pattern,
 )
@@ -98,5 +98,6 @@ def render() -> None:
         .reset_index()
     )
     for col in ["Total", "Rata2/Bulan", "Min", "Max"]:
-        yearly[col] = yearly[col].apply(lambda x: f"{x:,.0f}")
+        yearly[col] = yearly[col].apply(fmt_num)
+    yearly["Tahun"] = yearly["Tahun"].astype(int).astype(str)
     st.dataframe(yearly, use_container_width=True, hide_index=True)
