@@ -26,21 +26,75 @@ def load_and_preprocess(file_bytes: bytes):
     ts     : pd.Series     — working time series (same as ts_raw, kept for API compat)
     """
     df = pd.read_csv(io.BytesIO(file_bytes))
+
+    # Normalisasi nama kolom: lowercase → strip → rename ke PascalCase
+    # Agar dataset lama (PascalCase) maupun baru (lowercase) keduanya berjalan
+    col_map = {
+        "periode":                    "Periode",
+        "tahun":                      "Tahun",
+        "bulan":                      "Bulan",
+        "pesawat_datang":             "Pesawat_Datang",
+        "pesawat_berangkat":          "Pesawat_Berangkat",
+        "penumpang_datang":           "Penumpang_Datang",
+        "penumpang_berangkat":        "Penumpang_Berangkat",
+        "penumpang_transit_datang":   "Penumpang_Transit_Datang",
+        "penumpang_transit_berangkat":"Penumpang_Transit_Berangkat",
+        "penumpang transit_datang":   "Penumpang_Transit_Datang",
+        "penumpang transit_berangkat":"Penumpang_Transit_Berangkat",
+        "kargo_datang":               "Kargo_Datang",
+        "kargo_berangkat":            "Kargo_Berangkat",
+        "bagasi_datang":              "Bagasi_Datang",
+        "bagasi_berangkat":           "Bagasi_Berangkat",
+        "pos_datang":                 "Pos_Datang",
+        "pos_berangkat":              "Pos_Berangkat",
+    }
+    df.columns = (
+        df.columns
+        .str.strip()
+        .str.lower()
+        .map(lambda c: col_map.get(c, c))
+    )
+
     df["Periode"] = pd.to_datetime(df["Periode"], format="%Y-%m")
     df = df.sort_values("Periode").reset_index(drop=True)
 
     # Derived totals
     df["Total_Penumpang"] = df["Penumpang_Datang"] + df["Penumpang_Berangkat"]
     df["Total_Pesawat"]   = df["Pesawat_Datang"]   + df["Pesawat_Berangkat"]
-    df["Total_Transit"]   = (df["Penumpang Transit_Datang"]
-                             + df["Penumpang Transit_Berangkat"])
+    df["Total_Transit"]   = (
+        df["Penumpang_Transit_Datang"] + df["Penumpang_Transit_Berangkat"]
+    )
+
+    # Ganti baris dengan Total_Penumpang = 0 atau NaN menjadi NaN
+    # (data 2023 banyak yang kosong, perlu interpolasi agar model tidak error)
+    df.loc[df["Total_Penumpang"] <= 0, "Total_Penumpang"] = pd.NA
+    df["Total_Penumpang"] = (
+        df["Total_Penumpang"]
+        .astype("float64")
+        .interpolate(method="linear", limit_direction="both")
+    )
+
+    # Demikian pula untuk kolom turunan lain agar konsisten
+    for col in ["Penumpang_Datang", "Penumpang_Berangkat",
+                "Total_Pesawat", "Pesawat_Datang", "Pesawat_Berangkat"]:
+        df[col] = (
+            df[col]
+            .astype("float64")
+            .replace(0, pd.NA)
+            .interpolate(method="linear", limit_direction="both")
+        )
 
     # Drop any partial month beyond the analysis window
     df = df[df["Periode"] < "2026-05-01"].copy()
     df["Tahun"] = df["Periode"].dt.year
 
-    ts_raw = df.set_index("Periode")["Total_Penumpang"].asfreq("MS")
-    ts     = ts_raw.copy()
+    # asfreq("MS") mengisi bulan yang hilang dengan NaN, lalu interpolasi
+    ts_raw = (
+        df.set_index("Periode")["Total_Penumpang"]
+        .asfreq("MS")
+        .interpolate(method="linear", limit_direction="both")
+    )
+    ts = ts_raw.copy()
     return df, ts_raw, ts
 
 
