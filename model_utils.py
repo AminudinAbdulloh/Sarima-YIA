@@ -71,7 +71,6 @@ def run_model(
 
     fc_test   = res_train.get_forecast(steps=TEST_SIZE)
     pred_mean = fc_test.predicted_mean
-    pred_ci   = fc_test.conf_int(alpha=0.05)
 
     # ── Evaluation metrics ─────────────────────────────────────────────────
     mae  = mean_absolute_error(test, pred_mean)
@@ -92,23 +91,17 @@ def run_model(
         ts.index[-1] + pd.DateOffset(months=1), periods=n_forecast, freq="MS"
     )
     future_mean = fc_future.predicted_mean
-    future_ci   = fc_future.conf_int(alpha=0.05)
     future_mean.index = future_idx
-    future_ci.index   = future_idx
 
     forecast_rows = [
         {
             "Periode":    d.strftime("%Y-%m"),
             "Bulan":      f"{BULAN_FULL[d.month]} {d.year}",
             "Prediksi":   round(float(v)),
-            "Lower_95CI": round(max(float(lo), 0)),
-            "Upper_95CI": round(float(hi)),
         }
-        for d, v, lo, hi in zip(
+        for d, v in zip(
             future_mean.index,
             future_mean.values,
-            future_ci.iloc[:, 0].values,
-            future_ci.iloc[:, 1].values,
         )
     ]
 
@@ -123,10 +116,8 @@ def run_model(
         train=train,
         test=test,
         pred_mean=pred_mean,
-        pred_ci=pred_ci,
         fitted_full=res_full.fittedvalues,
         future_mean=future_mean,
-        future_ci=future_ci,
         forecast_rows=forecast_rows,
         residuals=residuals,
         mae=mae, rmse=rmse, mape=mape, acc=acc,

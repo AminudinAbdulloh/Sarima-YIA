@@ -175,32 +175,12 @@ def chart_forecast(ts: pd.Series, m: dict) -> go.Figure:
         line=dict(color="#374151", width=2.2),
         mode="lines+markers", marker=dict(size=6, color="#374151"),
     ))
-    # Test CI band
-    fig.add_trace(go.Scatter(
-        x=m["pred_ci"].index, y=m["pred_ci"].iloc[:, 1],
-        mode="lines", line=dict(width=0), showlegend=False,
-    ))
-    fig.add_trace(go.Scatter(
-        x=m["pred_ci"].index, y=m["pred_ci"].iloc[:, 0],
-        fill="tonexty", fillcolor="rgba(215,119,6,0.10)",
-        line=dict(width=0), name="95% CI (Uji)",
-    ))
     # Test prediction
     fig.add_trace(go.Scatter(
         x=m["pred_mean"].index, y=m["pred_mean"].values,
         name=f"Prediksi Uji (MAPE = {m['mape']:.2f}%)",
         line=dict(color=C["amber"], width=2.2),
         mode="lines+markers", marker=dict(size=6, color=C["amber"]),
-    ))
-    # Future CI band
-    fig.add_trace(go.Scatter(
-        x=m["future_ci"].index, y=m["future_ci"].iloc[:, 1],
-        mode="lines", line=dict(width=0), showlegend=False,
-    ))
-    fig.add_trace(go.Scatter(
-        x=m["future_ci"].index, y=m["future_ci"].iloc[:, 0],
-        fill="tonexty", fillcolor="rgba(5,150,105,0.10)",
-        line=dict(width=0), name="95% CI (Forecast)",
     ))
     # Future prediction with labels
     fig.add_trace(go.Scatter(

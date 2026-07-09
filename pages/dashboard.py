@@ -87,13 +87,12 @@ def render() -> None:
         section_header(
             "Prediksi ke Depan",
             f"Hasil Forecast SARIMA{m['order']}×{m['seasonal_order'][:3]}[s=12]",
-            f"Horizon {len(m['forecast_rows'])} bulan · Interval kepercayaan 95%",
+            f"Horizon {len(m['forecast_rows'])} bulan",
         )
         df_fc = pd.DataFrame(m["forecast_rows"]).copy()
-        for c in ["Prediksi", "Lower_95CI", "Upper_95CI"]:
-            df_fc[c] = df_fc[c].apply(fmt_num)
+        df_fc["Prediksi"] = df_fc["Prediksi"].apply(fmt_num)
         st.dataframe(
-            df_fc[["Bulan", "Prediksi", "Lower_95CI", "Upper_95CI"]],
+            df_fc[["Bulan", "Prediksi"]],
             use_container_width=True, hide_index=True,
         )
 

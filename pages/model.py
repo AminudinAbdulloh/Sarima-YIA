@@ -111,10 +111,9 @@ def render() -> None:
     with table_col:
         section_header("Forecast", f"Tabel Prediksi {n_forecast} Bulan ke Depan")
         df_fc = pd.DataFrame(m["forecast_rows"]).copy()
-        for c in ["Prediksi", "Lower_95CI", "Upper_95CI"]:
-            df_fc[c] = df_fc[c].apply(fmt_num)
+        df_fc["Prediksi"] = df_fc["Prediksi"].apply(fmt_num)
         st.dataframe(
-            df_fc[["Bulan", "Prediksi", "Lower_95CI", "Upper_95CI"]],
+            df_fc[["Bulan", "Prediksi"]],
             use_container_width=True, hide_index=True,
         )
         total_pred = sum(r["Prediksi"] for r in m["forecast_rows"])

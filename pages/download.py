@@ -34,8 +34,6 @@ def render() -> None:
         "Periode":     m["test"].index.strftime("%Y-%m"),
         "Aktual":      m["test"].values.astype(int),
         "Prediksi":    m["pred_mean"].values.astype(int),
-        "CI_Bawah_95": m["pred_ci"].iloc[:, 0].values.astype(int),
-        "CI_Atas_95":  m["pred_ci"].iloc[:, 1].values.astype(int),
         "Error":       (m["test"].values - m["pred_mean"].values).astype(int),
         "APE (%)":     np.round(
             np.abs((m["test"].values - m["pred_mean"].values) / m["test"].values) * 100, 2
@@ -68,8 +66,7 @@ def render() -> None:
     with col1:
         section_header("Prediksi", f"Prediksi {len(m['forecast_rows'])} Bulan ke Depan")
         disp_fc = df_forecast.copy()
-        for c in ["Prediksi", "Lower_95CI", "Upper_95CI"]:
-            disp_fc[c] = disp_fc[c].apply(fmt_num)
+        disp_fc["Prediksi"] = disp_fc["Prediksi"].apply(fmt_num)
         st.dataframe(disp_fc, use_container_width=True, hide_index=True)
         csv_fc = df_forecast.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
         st.download_button(
@@ -80,7 +77,7 @@ def render() -> None:
     with col2:
         section_header("Evaluasi", "Perbandingan Aktual vs Prediksi (12 Bulan Uji)")
         disp_ev = df_eval.copy()
-        for c in ["Aktual", "Prediksi", "CI_Bawah_95", "CI_Atas_95", "Error"]:
+        for c in ["Aktual", "Prediksi", "Error"]:
             disp_ev[c] = disp_ev[c].apply(fmt_num)
         st.dataframe(disp_ev, use_container_width=True, hide_index=True)
         csv_ev = df_eval.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
