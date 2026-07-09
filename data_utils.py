@@ -67,10 +67,22 @@ def load_and_preprocess(file_bytes: bytes):
 
     # Ganti baris dengan Total_Penumpang = 0 atau NaN menjadi NaN
     # (data 2023 banyak yang kosong, perlu interpolasi agar model tidak error)
+    def _to_float(series: pd.Series) -> pd.Series:
+        """Konversi seri ke float64, tangani format ribuan (titik) & desimal (koma)."""
+        if series.dtype == object:
+            series = (
+                series.astype(str)
+                .str.strip()
+                .str.replace(r"[^\d,\.\-]", "", regex=True)  # hapus karakter aneh
+                .str.replace(".", "", regex=False)             # hapus pemisah ribuan
+                .str.replace(",", ".", regex=False)            # ganti koma desimal → titik
+                .replace("", pd.NA)
+            )
+        return pd.to_numeric(series, errors="coerce")
+
     df.loc[df["Total_Penumpang"] <= 0, "Total_Penumpang"] = pd.NA
     df["Total_Penumpang"] = (
-        df["Total_Penumpang"]
-        .astype("float64")
+        _to_float(df["Total_Penumpang"])
         .interpolate(method="linear", limit_direction="both")
     )
 
@@ -78,8 +90,7 @@ def load_and_preprocess(file_bytes: bytes):
     for col in ["Penumpang_Datang", "Penumpang_Berangkat",
                 "Total_Pesawat", "Pesawat_Datang", "Pesawat_Berangkat"]:
         df[col] = (
-            df[col]
-            .astype("float64")
+            _to_float(df[col])
             .replace(0, pd.NA)
             .interpolate(method="linear", limit_direction="both")
         )
