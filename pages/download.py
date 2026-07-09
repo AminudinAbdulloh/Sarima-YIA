@@ -99,7 +99,7 @@ def render() -> None:
 
     df_hist = df_raw[
         ["Periode", "Total_Penumpang", "Penumpang_Datang",
-         "Penumpang_Berangkat", "Total_Pesawat"]
+         "Penumpang_Berangkat"]
     ].copy()
     df_hist["Periode"] = df_hist["Periode"].dt.strftime("%Y-%m")
 

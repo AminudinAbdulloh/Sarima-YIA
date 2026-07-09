@@ -62,18 +62,6 @@ def chart_datang_berangkat(df: pd.DataFrame) -> go.Figure:
     fig.update_yaxes(tickformat=",.0f")
     return fig
 
-
-def chart_pesawat(df: pd.DataFrame) -> go.Figure:
-    """Bar chart of total aircraft movements per month."""
-    fig = go.Figure(go.Bar(
-        x=df["Periode"], y=df["Total_Pesawat"],
-        marker=dict(color=C["blue_md"], opacity=0.75, line=dict(width=0)),
-        name="Pergerakan Pesawat",
-    ))
-    apply_plotly_theme(fig, height=300)
-    return fig
-
-
 def chart_seasonal_pattern(ts: pd.Series) -> go.Figure:
     """Bar chart of average monthly passengers to reveal seasonality."""
     monthly_avg = ts.groupby(ts.index.month).mean()

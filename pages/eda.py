@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """pages/eda.py — Exploratory Data Analysis page."""
+import pandas as pd
 import streamlit as st
 from components import section_header, page_hero, info_box, fmt_num, fmt_dec
 from chart_utils import (
-    chart_ts_overview, chart_datang_berangkat, chart_pesawat, chart_seasonal_pattern,
+    chart_ts_overview, chart_datang_berangkat, chart_seasonal_pattern,
 )
 
 
@@ -27,7 +28,6 @@ def render() -> None:
     tabs = st.tabs([
         "📈 Overview",
         "🛬🛫 Datang & Berangkat",
-        "✈️ Pergerakan Pesawat",
         "📋 Data Mentah",
         "📊 Statistik Deskriptif",
     ])
@@ -43,27 +43,30 @@ def render() -> None:
         st.plotly_chart(chart_datang_berangkat(df_raw), use_container_width=True)
 
     with tabs[2]:
-        info_box(
-            "ℹ️ <b>Data Konteks:</b> Pergerakan pesawat ditampilkan sebagai "
-            "informasi pendukung. Variabel yang dianalisis dan diprediksi adalah "
-            "<b>total penumpang domestik</b> (datang + berangkat).",
-            "info",
-        )
-        st.plotly_chart(chart_pesawat(df_raw), use_container_width=True)
-
-    with tabs[3]:
         tahun_list = sorted(df_raw["Tahun"].unique(), reverse=True)
         sel_tahun  = st.multiselect(
             "Filter Tahun", tahun_list, default=tahun_list, key="eda_filter"
         )
-        disp = df_raw[df_raw["Tahun"].isin(sel_tahun)][
-            ["Periode", "Total_Penumpang", "Penumpang_Datang",
-             "Penumpang_Berangkat", "Total_Pesawat"]
-        ].copy()
+        disp = df_raw[df_raw["Tahun"].isin(sel_tahun)].copy()
         disp["Periode"] = disp["Periode"].dt.strftime("%Y-%m")
-        st.dataframe(disp.reset_index(drop=True), use_container_width=True, hide_index=True)
+        
+        # Format ke ribuan titik Indonesia secara aman
+        def format_indo(val):
+            if pd.isna(val):
+                return ""
+            try:
+                return fmt_num(val)
+            except Exception:
+                return str(val)
+                
+        disp["Penumpang Datang"] = disp["Penumpang_Datang"].apply(format_indo)
+        disp["Penumpang Berangkat"] = disp["Penumpang_Berangkat"].apply(format_indo)
+        disp["Total Penumpang"] = disp["Total_Penumpang"].apply(format_indo)
+        
+        disp_show = disp[["Periode", "Penumpang Datang", "Penumpang Berangkat", "Total Penumpang"]]
+        st.dataframe(disp_show.reset_index(drop=True), use_container_width=True, hide_index=True)
 
-    with tabs[4]:
+    with tabs[3]:
         info_box(
             "ℹ️ <b>Data Asli Digunakan:</b> Seluruh nilai historis dipertahankan "
             "tanpa penggantian melalui interpolasi.",
@@ -87,7 +90,6 @@ def render() -> None:
                 f"{ts.std() / ts.mean() * 100:.2f}%",
             ],
         }
-        import pandas as pd
         st.dataframe(pd.DataFrame(stats_data), use_container_width=True, hide_index=True)
 
     # ── Yearly aggregation table ─────────────────────────────────────────────

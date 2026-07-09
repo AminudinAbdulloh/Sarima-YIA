@@ -31,22 +31,8 @@ def load_and_preprocess(file_bytes: bytes):
     # Agar dataset lama (PascalCase) maupun baru (lowercase) keduanya berjalan
     col_map = {
         "periode":                    "Periode",
-        "tahun":                      "Tahun",
-        "bulan":                      "Bulan",
-        "pesawat_datang":             "Pesawat_Datang",
-        "pesawat_berangkat":          "Pesawat_Berangkat",
         "penumpang_datang":           "Penumpang_Datang",
         "penumpang_berangkat":        "Penumpang_Berangkat",
-        "penumpang_transit_datang":   "Penumpang_Transit_Datang",
-        "penumpang_transit_berangkat":"Penumpang_Transit_Berangkat",
-        "penumpang transit_datang":   "Penumpang_Transit_Datang",
-        "penumpang transit_berangkat":"Penumpang_Transit_Berangkat",
-        "kargo_datang":               "Kargo_Datang",
-        "kargo_berangkat":            "Kargo_Berangkat",
-        "bagasi_datang":              "Bagasi_Datang",
-        "bagasi_berangkat":           "Bagasi_Berangkat",
-        "pos_datang":                 "Pos_Datang",
-        "pos_berangkat":              "Pos_Berangkat",
     }
     df.columns = (
         df.columns
@@ -55,15 +41,29 @@ def load_and_preprocess(file_bytes: bytes):
         .map(lambda c: col_map.get(c, c))
     )
 
-    df["Periode"] = pd.to_datetime(df["Periode"], format="%Y-%m")
+    id_months = {
+        "januari": 1, "februari": 2, "maret": 3, "april": 4,
+        "mei": 5, "juni": 6, "juli": 7, "agustus": 8,
+        "september": 9, "oktober": 10, "november": 11, "desember": 12
+    }
+
+    def parse_periode_indo(val):
+        if pd.isna(val):
+            return pd.NaT
+        val_str = str(val).strip().lower()
+        parts = val_str.split()
+        if len(parts) == 2:
+            m_str, y_str = parts
+            m_num = id_months.get(m_str)
+            if m_num:
+                return pd.to_datetime(f"{y_str}-{m_num:02d}-01")
+        return pd.to_datetime(val)
+
+    df["Periode"] = df["Periode"].apply(parse_periode_indo)
     df = df.sort_values("Periode").reset_index(drop=True)
 
     # Derived totals
     df["Total_Penumpang"] = df["Penumpang_Datang"] + df["Penumpang_Berangkat"]
-    df["Total_Pesawat"]   = df["Pesawat_Datang"]   + df["Pesawat_Berangkat"]
-    df["Total_Transit"]   = (
-        df["Penumpang_Transit_Datang"] + df["Penumpang_Transit_Berangkat"]
-    )
 
     # Ganti baris dengan Total_Penumpang = 0 atau NaN menjadi NaN
     # (data 2023 banyak yang kosong, perlu interpolasi agar model tidak error)
@@ -87,8 +87,7 @@ def load_and_preprocess(file_bytes: bytes):
     )
 
     # Demikian pula untuk kolom turunan lain agar konsisten
-    for col in ["Penumpang_Datang", "Penumpang_Berangkat",
-                "Total_Pesawat", "Pesawat_Datang", "Pesawat_Berangkat"]:
+    for col in ["Penumpang_Datang", "Penumpang_Berangkat"]:
         df[col] = (
             _to_float(df[col])
             .replace(0, pd.NA)

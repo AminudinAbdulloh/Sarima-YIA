@@ -61,14 +61,14 @@ def render_sidebar() -> str:
         st.markdown("### 📂 Sumber Data")
         uploaded = st.file_uploader(
             "Upload CSV (opsional)", type=["csv"],
-            help="Kosongkan untuk menggunakan data default (lalinud_YIA_domestik.csv)",
+            help="Kosongkan untuk menggunakan data default (data_penumpang_domestik_yia.csv)",
         )
 
         # Resolve file bytes
-        default_csv = os.path.join(BASE_DIR, "lalinud_YIA_domestik.csv")
+        default_csv = os.path.join(BASE_DIR, "data_penumpang_domestik_yia.csv")
         if not os.path.exists(default_csv):
             candidates = (
-                glob.glob(os.path.join(BASE_DIR, "*YIA*domestik*.csv")) +
+                glob.glob(os.path.join(BASE_DIR, "*domestik*yia*.csv")) +
                 glob.glob(os.path.join(BASE_DIR, "*.csv"))
             )
             if candidates:
