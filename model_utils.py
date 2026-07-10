@@ -4,7 +4,7 @@ model_utils.py — SARIMA model fitting, evaluation, and forecasting.
 
 Provides unit root tests (ADF and KPSS), Auto ARIMA estimation,
 dynamic generation and evaluation of alternative candidate models,
-and parameter estimates formatting.
+linear numerical data scaling, and Ljung-Box-based model selection.
 """
 import warnings
 import numpy as np
@@ -68,14 +68,12 @@ def map_param_name(name: str) -> str:
     if name.startswith("ma.L"):
         return f"MA{name[4:]}"
     if name.startswith("ar.S.L"):
-        # e.g., ar.S.L12 -> SAR1
         try:
             lag = int(name[6:])
             return f"SAR{lag // 12}"
         except ValueError:
             return name
     if name.startswith("ma.S.L"):
-        # e.g., ma.S.L12 -> SMA1, ma.S.L24 -> SMA2
         try:
             lag = int(name[6:])
             return f"SMA{lag // 12}"
@@ -91,14 +89,14 @@ def map_param_name(name: str) -> str:
 def run_model(
     ts: pd.Series,
     n_forecast: int,
-    use_auto: bool = True,  # Kept for compatibility, but UI always runs auto
+    use_auto: bool = True,
     manual_order: tuple = (1, 1, 1),
     manual_seasonal: tuple = (1, 1, 1),
 ) -> dict:
     """
-    Runs the entire SARIMA pipeline on original scale data.
+    Runs the entire SARIMA pipeline on raw data using a linear 1:1000 scaling.
     Finds the optimal model using Auto ARIMA, generates 4 neighboring models,
-    fits all of them, and builds comparative tables.
+    fits all of them, and selects the winner using Ljung-Box diagnostics.
     """
     # ── Train / test split ─────────────────────────────────────────────────
     train = ts.iloc[:-TEST_SIZE]
@@ -112,10 +110,20 @@ def run_model(
         "Diff_Both": get_stationarity_info(train.diff().diff(12).dropna()),
     }
 
-    # ── Step 3: Run Auto ARIMA to find the best model ──────────────────────
+    # ── Step 3: Penskalaan linier data (skala 1:1000) ──────────────────────
+    train_scaled = train / 1000.0
+    test_scaled = test / 1000.0
+    ts_scaled = ts / 1000.0
+
+    # Run Auto ARIMA on scaled training data (max_P=1, max_Q=1)
+    # Override constraints directly to guarantee bounds
+    params = AUTO_ARIMA_PARAMS.copy()
+    params["max_P"] = 1
+    params["max_Q"] = 1
+
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        auto = pm.auto_arima(train, **AUTO_ARIMA_PARAMS)
+        auto = pm.auto_arima(train_scaled, **params)
         
     best_order = auto.order
     best_seasonal_order = auto.seasonal_order
@@ -123,15 +131,19 @@ def run_model(
     p, d, q = best_order
     P, D, Q, s = best_seasonal_order
 
-    # Generate distinct candidates dynamically (Winner + 4 alternative neighbors)
+    # Generate candidate model variations (Winner + 4 neighbors)
     candidates_configs = []
     candidates_configs.append((best_order, best_seasonal_order))
+
+    # Alternate seasonal parameters (max P/Q is 1)
+    P_alt = P - 1 if P == 1 else P + 1
+    Q_alt = Q - 1 if Q == 1 else Q + 1
 
     variations = [
         ((p + 1 if p < 3 else p - 1, d, q), (P, D, Q, 12)),
         ((p, d, q + 1 if q < 3 else q - 1), (P, D, Q, 12)),
-        ((p, d, q), (P + 1 if P < 2 else P - 1, D, Q, 12)),
-        ((p, d, q), (P, D, Q + 1 if Q < 2 else Q - 1, 12)),
+        ((p, d, q), (P_alt, D, Q, 12)),
+        ((p, d, q), (P, D, Q_alt, 12)),
         ((0 if p != 0 else 1, d, 1 if q != 1 else 0), (0, D, 1 if Q != 1 else 0, 12))
     ]
 
@@ -141,11 +153,11 @@ def run_model(
         if (ord_val, seas_val) not in candidates_configs:
             candidates_configs.append((ord_val, seas_val))
 
-    # Fallbacks to ensure exactly 5 models if duplicates occur
+    # Fallbacks respecting bounds (P<=1, Q<=1)
     defaults = [
         ((1, d, 1), (1, D, 1, 12)),
         ((2, d, 1), (0, D, 1, 12)),
-        ((0, d, 1), (0, D, 2, 12)),
+        ((0, d, 1), (0, D, 1, 12)),
         ((1, d, 0), (0, D, 1, 12))
     ]
     for ord_val, seas_val in defaults:
@@ -156,44 +168,43 @@ def run_model(
 
     candidates_configs = candidates_configs[:5]
 
-    # ── Step 4: Fit all candidate models and compile results ────────────────
+    # ── Step 4: Fit all candidate models ────────────────────────────────────
     candidates_results = []
-    combined_rows = []
 
     for ord_val, seas_val in candidates_configs:
         model_name = f"SARIMA ({ord_val[0]},{ord_val[1]},{ord_val[2]})({seas_val[0]},{seas_val[1]},{seas_val[2]})"
         
         try:
-            # Fit on training data
+            # Fit on training data (scaled scale)
             res_train = SARIMAX(
-                train, order=ord_val, seasonal_order=seas_val, **_SARIMAX_FIT_KWARGS
+                train_scaled, order=ord_val, seasonal_order=seas_val, **_SARIMAX_FIT_KWARGS
             ).fit(disp=False)
             
+            # Forecast on test (scale back)
             fc_test = res_train.get_forecast(steps=TEST_SIZE)
-            pred_mean = fc_test.predicted_mean
+            pred_mean = fc_test.predicted_mean * 1000.0
             
-            # Compute evaluation metrics
+            # Compute evaluation metrics (original scale)
             mae  = mean_absolute_error(test, pred_mean)
             rmse = np.sqrt(mean_squared_error(test, pred_mean))
             mape = np.mean(np.abs((test.values - pred_mean.values) / test.values)) * 100
             acc  = 100.0 - mape
             r, _ = pearsonr(test.values, pred_mean.values)
             
-            # Residual diagnostics (training)
-            residuals = res_train.resid
-            lb = acorr_ljungbox(residuals, lags=[12], return_df=True)
+            # Residual diagnostics (training, scale back to original for plot)
+            residuals = res_train.resid * 1000.0
+            lb = acorr_ljungbox(res_train.resid, lags=[12], return_df=True)
             lb_pval = float(lb["lb_pvalue"].values[0])
             lb_stat = float(lb["lb_stat"].values[0])
-            _, norm_p = stats.shapiro(residuals)
 
-            # Fit on full data
+            # Fit on full data (scaled scale)
             res_full = SARIMAX(
-                ts, order=ord_val, seasonal_order=seas_val, **_SARIMAX_FIT_KWARGS
+                ts_scaled, order=ord_val, seasonal_order=seas_val, **_SARIMAX_FIT_KWARGS
             ).fit(disp=False)
             
-            fitted_full = res_full.fittedvalues
+            fitted_full = res_full.fittedvalues * 1000.0
             fc_future = res_full.get_forecast(steps=n_forecast)
-            future_mean = fc_future.predicted_mean
+            future_mean = fc_future.predicted_mean * 1000.0
             
             future_idx = pd.date_range(
                 ts.index[-1] + pd.DateOffset(months=1), periods=n_forecast, freq="MS"
@@ -209,7 +220,7 @@ def run_model(
                 for d, v in zip(future_mean.index, future_mean.values)
             ]
 
-            # Build individual coefficients table
+            # Individual coefficients table
             coef_table = []
             for name, coef, stderr, z, pval in zip(
                 res_full.param_names,
@@ -218,29 +229,18 @@ def run_model(
                 res_full.tvalues,
                 res_full.pvalues
             ):
-                is_sigma = (name == "sigma2")
                 mapped_name = map_param_name(name)
+                pval_val = float(pval) if not pd.isna(pval) else np.nan
                 
-                # Coefficients for individual model table
                 coef_table.append({
                     "Parameter": mapped_name,
                     "Koefisien": float(coef),
-                    "Std Error": float(stderr),
-                    "z-stat": float(z),
-                    "P>|z|": float(pval),
-                    "Signifikansi": "✅ Signifikan (p≤0.05)" if pval <= 0.05 else "❌ Tidak Signifikan (p>0.05)"
+                    "Std Error": float(stderr) if not pd.isna(stderr) else np.nan,
+                    "z-stat": float(z) if not pd.isna(z) else np.nan,
+                    "P>|z|": pval_val,
+                    "Signifikansi": "✅ Signifikan (p≤0.05)" if pval_val <= 0.05 else "❌ Tidak Signifikan (p>0.05)"
                 })
                 
-                # Rows for combined table (exclude sigma2)
-                if not is_sigma:
-                    combined_rows.append({
-                        "Model": model_name,
-                        "Koefisien": mapped_name,
-                        "P-value": float(pval),
-                        "Alpha": 0.05,
-                        "Keputusan": "Tolak H0" if pval <= 0.05 else "Gagal Tolak H0"
-                    })
-                    
             df_coef = pd.DataFrame(coef_table)
 
             candidates_results.append({
@@ -260,20 +260,55 @@ def run_model(
                 "bic": float(res_full.bic),
                 "lb_stat": lb_stat,
                 "lb_p": lb_pval,
-                "norm_p": float(norm_p),
                 "df_coef": df_coef
             })
         except Exception as e:
-            # Handle fit failures gracefully
             continue
 
-    # Combined estimates table
+    # ── Step 5: Select Winner based on Ljung-Box & AIC ─────────────────────
+    # Choose model passing Ljung-Box (p-value > 0.05) with minimum AIC.
+    # Fallback to minimum AIC among all candidates if none pass.
+    passing_candidates = [c for c in candidates_results if c["lb_p"] > 0.05]
+    if passing_candidates:
+        winner_model = min(passing_candidates, key=lambda x: x["aic"])
+    else:
+        winner_model = min(candidates_results, key=lambda x: x["aic"])
+
+    # Reorder candidates list so that the selected winner model is at index 0
+    final_candidates = [winner_model]
+    for c in candidates_results:
+        if c["name"] != winner_model["name"]:
+            final_candidates.append(c)
+
+    # ── Step 6: Construct combined parameter estimates table ───────────────
+    combined_rows = []
+    for cand in final_candidates:
+        # Re-extract coefficients from cand's df_coef (exclude sigma2)
+        for _, row in cand["df_coef"].iterrows():
+            param_name = row["Parameter"]
+            if param_name == "sigma2":
+                continue
+                
+            pval_val = row["P>|z|"]
+            
+            if pd.isna(pval_val):
+                keputusan = "Gagal Tolak H0"
+            else:
+                keputusan = "Tolak H0" if pval_val <= 0.05 else "Gagal Tolak H0"
+                
+            combined_rows.append({
+                "Model": cand["name"],
+                "Koefisien": param_name,
+                "P-value": pval_val,
+                "Alpha": 0.05,
+                "Keputusan": keputusan
+            })
+            
     df_combined_params = pd.DataFrame(combined_rows)
 
-    # Return full data structure
     return dict(
         stationarity_steps=stationarity_steps,
-        candidates=candidates_results,
+        candidates=final_candidates,
         df_combined_params=df_combined_params,
         ts_diff_both=train.diff().diff(12).dropna()
     )

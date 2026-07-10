@@ -139,9 +139,18 @@ def render() -> None:
                 "BIC": f"{cand['bic']:.2f}".replace(".", ","),
                 "MAPE": f"{cand['mape']:.2f}%".replace(".", ","),
                 "Akurasi": f"{cand['acc']:.2f}%".replace(".", ","),
-                "Ljung-Box (White Noise)": "✅ Lolos" if lb_ok else "⚠️ Perlu Cek",
+                "Ljung-Box p-value": f"{cand['lb_p']:.4f}".replace(".", ","),
+                "Diagnostik (White Noise)": "✅ Lolos" if lb_ok else "⚠️ Perlu Cek",
             })
         st.dataframe(pd.DataFrame(comp_rows), use_container_width=True, hide_index=True)
+        
+        st.markdown(
+            "💡 <b>Pemberitahuan Pemilihan Model Terbaik:</b> Model terbaik (pemenang) dipilih dengan kriteria:<br>"
+            "1. Menyaring model kandidat yang **lolos uji diagnostik Ljung-Box (p-value > 0,05)** (bebas autokorelasi).<br>"
+            "2. Memilih model dengan **nilai AIC terendah** di antara kelompok yang lolos tersebut.<br>"
+            "3. Jika tidak ada model yang lolos, sistem melakukan *fallback* ke model dengan AIC terendah secara keseluruhan.",
+            unsafe_allow_html=True
+        )
         
         # Active model selection dropdown
         st.markdown("---")
@@ -164,14 +173,25 @@ def render() -> None:
         active_model = next(cand for cand in candidates if cand["name"] == selected_model_name)
         st.session_state["model_result"] = active_model
         
+        # Helper to format floats or NaNs safely
+        def format_mle(val):
+            if pd.isna(val) or val is None:
+                return "NaN"
+            return f"{float(val):.4f}".replace(".", ",")
+        
         # Display active model coefficients table
         st.markdown(f"##### Tabel Estimasi Parameter MLE untuk {active_model['name']}:")
-        st.dataframe(active_model["df_coef"], use_container_width=True, hide_index=True)
+        df_active_coef = active_model["df_coef"].copy()
+        df_active_coef["Koefisien"] = df_active_coef["Koefisien"].apply(format_mle)
+        df_active_coef["Std Error"] = df_active_coef["Std Error"].apply(format_mle)
+        df_active_coef["z-stat"] = df_active_coef["z-stat"].apply(format_mle)
+        df_active_coef["P>|z|"] = df_active_coef["P>|z|"].apply(format_mle)
+        st.dataframe(df_active_coef, use_container_width=True, hide_index=True)
         
         # Display combined parameter table matching the diagram
         st.markdown("##### Tabel Hasil Estimasi Parameter Semua Model (Ringkasan Gabungan):")
         df_combined = p_res["df_combined_params"].copy()
-        df_combined["P-value"] = df_combined["P-value"].apply(lambda val: f"{val:.4f}".replace(".", ","))
+        df_combined["P-value"] = df_combined["P-value"].apply(format_mle)
         df_combined["Alpha"] = df_combined["Alpha"].apply(lambda val: f"{val:.2f}".replace(".", ","))
         st.dataframe(df_combined, use_container_width=True, hide_index=True)
 
@@ -181,25 +201,14 @@ def render() -> None:
             f"Evaluasi residual (sisaan) untuk model aktif **{active_model['name']}**."
         )
         lb_ok = active_model["lb_p"] > 0.05
-        norm_ok = active_model["norm_p"] > 0.05
         
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown("**Uji Ljung-Box (Autokorelasi)**")
-            st.markdown(f"- p-value: `{active_model['lb_p']:.4f}`")
-            if lb_ok:
-                st.success("✅ Lolos (p > 0,05): Tidak ada autokorelasi, residual bersifat White Noise.")
-            else:
-                st.warning("⚠️ Perlu Cek (p ≤ 0,05): Terdapat autokorelasi pada residual.")
-                
-        with c2:
-            st.markdown("**Uji Shapiro-Wilk (Normalitas)**")
-            st.markdown(f"- p-value: `{active_model['norm_p']:.4f}`")
-            if norm_ok:
-                st.success("✅ Lolos (p > 0,05): Residual terdistribusi normal.")
-            else:
-                st.info("ℹ️ Info (p ≤ 0,05): Residual tidak terdistribusi normal.")
-                
+        st.markdown("**Uji Ljung-Box (Autokorelasi)**")
+        st.markdown(f"- p-value: `{active_model['lb_p']:.4f}`")
+        if lb_ok:
+            st.success("✅ Lolos (p > 0,05): Tidak ada autokorelasi, residual bersifat White Noise.")
+        else:
+            st.warning("⚠️ Perlu Cek (p ≤ 0,05): Terdapat autokorelasi pada residual.")
+            
         st.plotly_chart(chart_residual_diagnostics(active_model["residuals"]), use_container_width=True)
 
         if lb_ok:

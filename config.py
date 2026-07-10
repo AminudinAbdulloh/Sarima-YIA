@@ -85,7 +85,7 @@ PAGES = {
 AUTO_ARIMA_PARAMS = dict(
     start_p=0, max_p=3, start_q=0, max_q=3,
     d=None,    max_d=2,
-    start_P=0, max_P=2, start_Q=0, max_Q=2,
+    start_P=0, max_P=1, start_Q=0, max_Q=1,
     D=1,       m=12,
     seasonal=True,
     information_criterion="aic",
