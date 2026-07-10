@@ -75,13 +75,11 @@ PLOTLY_LAYOUT = dict(
 
 # ── Navigation ─────────────────────────────────────────────────────────────────
 PAGES = {
-    "🏠 Dashboard":                   "dashboard",
-    "📊 Eksplorasi Data (EDA)":        "eda",
-    "📈 Stasioneritas & Dekomposisi":  "stationarity",
-    "🤖 Model & Prediksi":             "model",
-    "🧪 Diagnostik Residual":          "diagnostics",
-    "📥 Download Hasil":               "download",
+    "🏠 Dashboard":      "dashboard",
+    "🤖 Metode SARIMA":  "model",
+    "📥 Download Hasil": "download",
 }
+
 
 # ── Model constraints (sesuai batasan masalah) ─────────────────────────────────
 AUTO_ARIMA_PARAMS = dict(

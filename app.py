@@ -31,19 +31,14 @@ st.set_page_config(
 def _load_page(name: str):
     if name == "dashboard":
         from pages.dashboard    import render
-    elif name == "eda":
-        from pages.eda          import render
-    elif name == "stationarity":
-        from pages.stationarity import render
     elif name == "model":
         from pages.model        import render
-    elif name == "diagnostics":
-        from pages.diagnostics  import render
     elif name == "download":
         from pages.download     import render
     else:
         def render(): st.error(f"Halaman '{name}' tidak ditemukan.")
     return render
+
 
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
