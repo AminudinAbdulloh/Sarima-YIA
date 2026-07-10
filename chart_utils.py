@@ -246,11 +246,13 @@ def chart_actual_vs_pred(test: pd.Series, pred_mean: pd.Series) -> go.Figure:
 # ── Residual diagnostics chart ─────────────────────────────────────────────────
 
 def chart_residual_diagnostics(residuals: pd.Series) -> go.Figure:
-    """4-panel residual diagnostics: time plot, histogram, Q-Q, ACF."""
+    """4-panel residual diagnostics: time plot, Ljung-Box p-values, Q-Q, ACF."""
+    from statsmodels.stats.diagnostic import acorr_ljungbox
+
     fig = make_subplots(
         rows=2, cols=2,
         subplot_titles=[
-            "Residual vs Waktu", "Distribusi Residual",
+            "Residual vs Waktu", "Uji Ljung-Box (p-value per Lag)",
             "Q-Q Plot",          "ACF Residual",
         ],
     )
@@ -261,19 +263,28 @@ def chart_residual_diagnostics(residuals: pd.Series) -> go.Figure:
     ), row=1, col=1)
     fig.add_hline(y=0, line=dict(color="#CBD5E1", dash="dash"), row=1, col=1)
 
-    # Histogram + normal overlay
-    fig.add_trace(go.Histogram(
-        x=residuals.values, nbinsx=15,
-        marker=dict(color=C["blue"], opacity=0.70, line=dict(color="#FFFFFF", width=0.5)),
-        name="Histogram",
-    ), row=1, col=2)
-    x_norm = np.linspace(residuals.min(), residuals.max(), 120)
-    y_norm = stats.norm.pdf(x_norm, residuals.mean(), residuals.std())
-    scale  = len(residuals) * (residuals.max() - residuals.min()) / 15
+    # Ljung-Box p-value per lag (lag 1 to 12)
+    clean_res = residuals.dropna()
+    lb_res = acorr_ljungbox(clean_res, lags=list(range(1, 13)), return_df=True)
+    lags = list(lb_res.index)
+    p_values = lb_res["lb_pvalue"].values
+    
+    point_colors = [C["green"] if pv > 0.05 else C["red"] for pv in p_values]
+    
     fig.add_trace(go.Scatter(
-        x=x_norm, y=y_norm * scale, name="Distribusi Normal",
-        line=dict(color=C["red"], width=2),
+        x=lags, y=p_values, mode="markers+lines",
+        marker=dict(
+            color=point_colors, 
+            size=9, 
+            line=dict(width=1, color="#FFFFFF"),
+            symbol="circle"
+        ),
+        line=dict(color="#E2E8F0", width=1.5),
+        name="Ljung-Box p-value",
     ), row=1, col=2)
+    fig.add_hline(y=0.05, line=dict(color=C["red"], dash="dash", width=1.5), row=1, col=2)
+    fig.update_yaxes(range=[-0.05, 1.05], row=1, col=2)
+    fig.update_xaxes(tickmode="array", tickvals=lags, row=1, col=2)
 
     # Q-Q plot
     (osm, osr), (slope, intercept, _) = stats.probplot(residuals, dist="norm")
